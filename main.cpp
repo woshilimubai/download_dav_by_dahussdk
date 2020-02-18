@@ -53,12 +53,16 @@ int download_by_time(char* ip_addr, int port, char* user, char* pwd, unsigned ch
     int stream_type = 1; // 0-主辅码流,1-主码流,2-辅码流
     LLONG login_handle = 0;
     DWORD temp = 0;
-    char part1_len = 6;// 时间点前一部分的视频时长, NOTE：应为正整数
-    char part2_len = -1;//时间点后一部分的视频时长，NOTE：应为正整数
+    char part1_len = 1; // 时间点前一部分的视频时长, NOTE：应为正整数
+    char part2_len = 1; //时间点后一部分的视频时长，NOTE：应为正整数
     NET_DEVICEINFO_Ex info_ex = { 0 };
     int err = 0;
+    int n_waittime = 5000;  //超时时间设置为5s
+    int n_trytime = 5; //若出现超时，尝试登陆5次
     CLIENT_Init(Disconnect, NULL);
     CLIENT_SetAutoReconnect(fHaveReConnectCB, NULL);
+    // 设置连接超时时间和尝试次数
+    CLIENT_SetConnectTime(n_waittime, n_trytime);
     login_handle = CLIENT_LoginEx2(ip_addr, port, user, pwd, (EM_LOGIN_SPAC_CAP_TYPE)0, NULL, &info_ex, &err);
     if (login_handle == 0)
     {
@@ -70,7 +74,6 @@ int download_by_time(char* ip_addr, int port, char* user, char* pwd, unsigned ch
     else
     {
         printf("%s 登陆成功!\r\n", ip_addr);
-
         //****************开启录像下载***********************
         // 设置查询时的录像码流类型，此处设置码流类型为主码流
         CLIENT_SetDeviceMode(login_handle, DH_RECORD_STREAM_TYPE, &stream_type);
@@ -266,11 +269,15 @@ int get_trigger(char *ip)
         {
             // 获取 trigger状态
             reply = (redisReply *)redisCommand(connect, "GET trigger_flag");
-            if(reply->str == 0x0 || reply->str[0] == '1') //获取的trigger_flag符合规范
+            if(reply->str[0] == '0' || reply->str[0] == '1') //获取的trigger_flag符合规范
             {
                 printf("GET trigger_flag: %s\n", reply->str);
+                if(reply->str[0] == '1')
+                    break;
                 freeReplyObject(reply);
-                break;
+                i++;
+                sleep(3);
+
             }
             else //获取的trigger_flag不符合规范
             {
@@ -386,12 +393,17 @@ int main(void)
 {
     while(1)
     {
-        //if(get_trigger("192.168.80.2"))
-        if(get_trigger(REDIS))
+        if(get_trigger("192.168.80.2"))
+        //if(get_trigger(REDIS))
         {
             struct tm* time = get_time();
-            download_by_time("192.168.12.13", 37777, "admin", "aaa123456", 0, time);
-            //download_by_time("192.168.80.73", 37777, "admin", "aaa123456", 0, time);
+            //download_by_time("192.168.12.13", 37777, "admin", "aaa123456", 0, time);
+            download_by_time("192.168.80.73", 37777, "admin", "aaa123456", 0, time);
+            //download_by_time("192.168.80.73", 37777, "admin", "aaa123456", 1, time);
+            //download_by_time("192.168.80.73", 37777, "admin", "aaa123456", 2, time);
+            //download_by_time("192.168.80.73", 37777, "admin", "aaa123456", 3, time);
+            //download_by_time("192.168.80.71", 37777, "admin", "aaa123456", 0, time);
+            //download_by_time("192.168.80.72", 37777, "admin", "aaa123456", 0, time);
             //printf("按回车键继续执行程序……\r\n");
             //getchar();
         }
